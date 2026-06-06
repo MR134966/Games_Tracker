@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pl" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obserwowane - GameDeals</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-deep: #121212;
+            --bg-card: #1e1e1e;
+            --bg-card-hover: #2a2a2a;
+            --border-subtle: #333;
+            --accent-primary: #0d6efd;
+            --accent-success: #198754;
+            --accent-warning: #ffc107;
+            --accent-danger: #dc3545;
+            --text-primary: #f8f9fa;
+            --text-secondary: #adb5bd;
+            --text-muted: #6c757d;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-primary);
+            font-family: system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background-color: var(--bg-card) !important;
+            border-bottom: 1px solid var(--border-subtle) !important;
+            padding: 1rem 0;
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.25rem;
+            color: var(--accent-primary) !important;
+        }
+
+        .navbar .nav-link {
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+        }
+
+        .navbar .nav-link.text-warning { color: var(--accent-warning) !important; }
+        .navbar .nav-link.text-success { color: var(--accent-success) !important; }
+
+        .chart-card, .deal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card .chart-header {
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 1rem;
+        }
+
+        .chart-card .chart-body { padding: 1rem; }
+        .chart-card canvas { max-height: 180px; }
+
+        .deal-card {
+            cursor: pointer;
+            transition: background 0.2s ease;
+            height: 100%;
+        }
+
+        .deal-card:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .deal-card .card-body {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .deal-card .game-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .deal-card .price-current {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--accent-success);
+            margin-bottom: 0;
+        }
+
+        .deal-card .price-original {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-decoration: line-through;
+        }
+
+        .deal-card .savings-badge {
+            font-size: 0.8rem;
+            background: var(--accent-danger);
+            color: #fff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .btn-untrack {
+            background: transparent;
+            border: 1px solid var(--accent-danger);
+            color: var(--accent-danger);
+            border-radius: 6px;
+            padding: 0.5rem;
+            width: 100%;
+            margin-top: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-untrack:hover {
+            background: var(--accent-danger);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-controller"></i> GameDeals Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="/"><i class="bi bi-search me-1"></i> Wyszukiwarka</a>
+                    <a class="nav-link text-warning" href="/top_deals"><i class="bi bi-fire me-1"></i> Gorące Okazje</a>
+                    <a class="nav-link text-success fw-bold" href="/watchlist"><i class="bi bi-star-fill me-1"></i> Obserwowane</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h4 class="mb-4 text-success"><i class="bi bi-star-fill me-2"></i>Twoje Śledzone Gry</h4>
+
+        <div class="chart-card">
+            <div class="chart-header d-flex align-items-center gap-2">
+                <i class="bi bi-graph-up text-primary"></i>
+                <strong id="chart-title">Wybierz grę poniżej</strong>
+                <span class="text-muted ms-auto small">Kliknij kartę, aby załadować historyczne minimum</span>
+            </div>
+            <div class="chart-body">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+            {% for game in tracked_data %}
+            <div class="col">
+                <div class="deal-card" onclick='updateChart("{{ game.game_id }}", {{ game.title | tojson }}, {{ game.normal_pln }}, {{ game.price_pln }})'>
+                    <div class="card-body">
+                        <div>
+                            <h5 class="game-title">{{ game.title }}</h5>
+                            <span class="badge bg-secondary mb-3"><i class="bi bi-shop me-1"></i>{{ game.store_name }}</span>
+                            <p class="price-current">{{ game.price_pln }} PLN</p>
+                            {% if game.savings > 0 %}
+                            <div class="mt-2">
+                                <span class="price-original">{{ game.normal_pln }} PLN</span>
+                                <span class="savings-badge">-{{ game.savings }}%</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <form action="/untrack" method="POST" class="untrack-form mt-auto pt-3">
+                            <input type="hidden" name="game_id" value="{{ game.game_id }}">
+                            <button type="submit" class="btn-untrack">
+                                <i class="bi bi-trash me-1"></i> Usuń z obserwowanych
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i> Nie śledzisz jeszcze żadnych gier. Wróć do wyszukiwarki i dodaj coś do listy!
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let priceChart;
+        const currentExchangeRate = {{ exchange_rate | default(4.0) }};
+        const ctx = document.getElementById('priceChart').getContext('2d');
+
+        priceChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ["Cena Standardowa", "Obecna Oferta", "Historyczne Minimum"],
+                datasets: [{
+                    label: 'Cena (PLN)',
+                    data: [0, 0, 0],
+                    backgroundColor: ['#dc3545', '#198754', '#ffc107'],
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        function updateChart(gameId, title, normalPrice, currentPrice) {
+            const titleElement = document.getElementById('chart-title');
+            if (titleElement) titleElement.innerText = title;
+
+            fetch(`/api/historical_low/${gameId}`)
+                .then(response => response.json())
+                .then(data => {
+                    let cheapestPln = currentPrice;
+                    if (data.price_usd !== null) {
+                        cheapestPln = (data.price_usd * currentExchangeRate).toFixed(2);
+                        if (parseFloat(currentPrice) < parseFloat(cheapestPln)) {
+                            cheapestPln = currentPrice;
+                        }
+                    }
+                    priceChart.data.datasets[0].data = [normalPrice, currentPrice, cheapestPln];
+                    priceChart.update();
+                })
+                .catch(error => console.error(error));
+        }
+
+        document.querySelectorAll('.untrack-form').forEach(form => {
+            form.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        });
+    </script>
+</body>
+</html>

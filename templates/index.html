@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pl" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameDeals Tracker (Web)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-deep: #121212;
+            --bg-card: #1e1e1e;
+            --bg-card-hover: #2a2a2a;
+            --border-subtle: #333;
+            --accent-primary: #0d6efd;
+            --accent-success: #198754;
+            --accent-warning: #ffc107;
+            --accent-danger: #dc3545;
+            --text-primary: #f8f9fa;
+            --text-secondary: #adb5bd;
+            --text-muted: #6c757d;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-primary);
+            font-family: system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background-color: var(--bg-card) !important;
+            border-bottom: 1px solid var(--border-subtle) !important;
+            padding: 1rem 0;
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.25rem;
+            color: var(--accent-primary) !important;
+        }
+
+        .navbar .nav-link {
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+        }
+
+        .navbar .nav-link.text-warning { color: var(--accent-warning) !important; }
+        .navbar .nav-link.text-success { color: var(--accent-success) !important; }
+
+        .search-card, .chart-card, .deal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        .search-card { padding: 1.5rem; }
+
+        .search-card .form-control, .search-card .form-select {
+            background: var(--bg-deep);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+
+        .search-card .form-control:focus, .search-card .form-select:focus {
+            border-color: var(--accent-primary);
+            box-shadow: none;
+        }
+
+        .btn-search {
+            background: var(--accent-primary);
+            border: none;
+            border-radius: 6px;
+            padding: 0.6rem 2rem;
+            color: #fff;
+        }
+
+        .chart-card .chart-header {
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 1rem;
+        }
+
+        .chart-card .chart-body { padding: 1rem; }
+        .chart-card canvas { max-height: 180px; }
+
+        .deal-card {
+            cursor: pointer;
+            transition: background 0.2s ease;
+            height: 100%;
+        }
+
+        .deal-card:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .deal-card .card-body {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .deal-card .game-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .deal-card .price-current {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--accent-success);
+            margin-bottom: 0;
+        }
+
+        .deal-card .price-original {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-decoration: line-through;
+        }
+
+        .deal-card .savings-badge {
+            font-size: 0.8rem;
+            background: var(--accent-danger);
+            color: #fff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .deal-card .btn-track {
+            background: transparent;
+            border: 1px solid var(--accent-success);
+            color: var(--accent-success);
+            border-radius: 6px;
+            padding: 0.5rem;
+            width: 100%;
+            margin-top: 1rem;
+            cursor: pointer;
+        }
+
+        .deal-card .btn-track:hover {
+            background: var(--accent-success);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-controller"></i> GameDeals Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="/"><i class="bi bi-search me-1"></i> Wyszukiwarka</a>
+                    <a class="nav-link text-warning" href="/top_deals"><i class="bi bi-fire me-1"></i> Gorące Okazje</a>
+                    <a class="nav-link text-success fw-bold" href="/watchlist"><i class="bi bi-star-fill me-1"></i> Obserwowane</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="search-card">
+            <form method="POST" action="/">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-label text-secondary">Nazwa gry</label>
+                        <input type="text" class="form-control" name="game_name" value="{{ search_query }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-secondary">Sortuj według</label>
+                        <select class="form-select" name="sort_by">
+                            <option value="najniższa">Najniższa cena</option>
+                            <option value="najwyższa">Najwyższa cena</option>
+                            <option value="obniżka">Największa obniżka (%)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary d-block">Platformy</label>
+                        <div class="d-flex gap-3 flex-wrap">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="store" value="1" checked id="store-steam">
+                                <label class="form-check-label text-secondary" for="store-steam">Steam</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="store" value="25" checked id="store-epic">
+                                <label class="form-check-label text-secondary" for="store-epic">Epic</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="store" value="11" checked id="store-gog">
+                                <label class="form-check-label text-secondary" for="store-gog">GOG</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 text-center">
+                    <button type="submit" class="btn btn-search px-5">
+                        <i class="bi bi-search me-2"></i>Szukaj okazji
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ error }}
+        </div>
+        {% endif %}
+
+        {% if deals %}
+        <div class="chart-card">
+            <div class="chart-header d-flex align-items-center gap-2">
+                <i class="bi bi-graph-up text-primary"></i>
+                <strong id="chart-title">{{ best_deal_title }}</strong>
+                <span class="text-muted ms-auto small">Kliknij ofertę poniżej, aby zaktualizować</span>
+            </div>
+            <div class="chart-body">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <h4 class="mb-3 text-primary"><i class="bi bi-tag-fill me-2"></i>Wyniki wyszukiwania</h4>
+        <div class="row row-cols-1 row-cols-md-2 g-4 mb-5">
+            {% for deal in deals %}
+            <div class="col">
+                <div class="deal-card" onclick='updateChart("{{ deal.game_id }}", {{ deal.title | tojson }}, {{ deal.normal_pln }}, {{ deal.price_pln }})'>
+                    <div class="card-body">
+                        <div>
+                            <h5 class="game-title">{{ deal.title }}</h5>
+                            <span class="badge bg-secondary mb-3"><i class="bi bi-shop me-1"></i>{{ deal.store_name }}</span>
+                            <p class="price-current">{{ deal.price_pln }} PLN</p>
+                            {% if deal.savings > 0 %}
+                            <div class="mt-2">
+                                <span class="price-original">{{ deal.normal_pln }} PLN</span>
+                                <span class="savings-badge">-{{ deal.savings }}%</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <form action="/track" method="POST" class="track-form">
+                            <input type="hidden" name="game_id" value="{{ deal.game_id }}">
+                            <input type="hidden" name="title" value="{{ deal.title }}">
+                            <button type="submit" class="btn-track">
+                                <i class="bi bi-star me-1"></i> Śledź tę grę
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% elif deals != None %}
+        <div class="alert alert-warning">
+            <i class="bi bi-emoji-frown me-2"></i> Brak wyników z wybranych platform dla tego tytułu.
+        </div>
+        {% endif %}
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let priceChart;
+        const currentExchangeRate = {{ exchange_rate | default(4.0) }};
+        const rawData = {{ chart_data | safe }};
+
+        if (rawData && rawData.length > 0) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: {{ chart_labels | safe }},
+                    datasets: [{
+                        label: 'Cena (PLN)',
+                        data: rawData,
+                        backgroundColor: ['#dc3545', '#198754', '#ffc107'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function updateChart(gameId, title, normalPrice, currentPrice) {
+            const titleElement = document.getElementById('chart-title');
+            if (titleElement) titleElement.innerText = title;
+
+            fetch(`/api/historical_low/${gameId}`)
+            .then(response => response.json())
+            .then(data => {
+                let cheapestPln = currentPrice;
+                if (data.price_usd !== null) {
+                    cheapestPln = (data.price_usd * currentExchangeRate).toFixed(2);
+                }
+                priceChart.data.datasets[0].data = [normalPrice, currentPrice, cheapestPln];
+                priceChart.update();
+            })
+            .catch(error => console.error(error));
+        }
+
+        document.querySelectorAll('.track-form').forEach(form => {
+            form.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        });
+    </script>
+</body>
+</html>
