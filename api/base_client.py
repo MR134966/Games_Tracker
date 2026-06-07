@@ -38,6 +38,18 @@ class GameDataFetcher:
         except requests.exceptions.RequestException:
             return None
 
+    def get_games_by_ids(self, game_ids):
+        if not game_ids:
+            return {}
+        url = f"{self.base_url}/games"
+        params = {"ids": ",".join(game_ids)}
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException:
+            return {}
+
     def get_hot_deals(self):
         url = f"{self.base_url}/deals"
         params = {"sortBy": "Deal Rating", "onSale": 1, "storeID": "1,11,25"}
